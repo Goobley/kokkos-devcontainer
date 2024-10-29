@@ -4,7 +4,7 @@ RUN apt update && apt install -y git curl libcurl4-openssl-dev
 
 WORKDIR /src/kokkos
 COPY docker_deps/kokkos/docker_setup.sh .
-RUN ./docker_setup.sh "-DKokkos_ENABLE_SERIAL=ON -DKokkos_ENABLE_CUDA=ON -DKokkos_ARCH_AMPERE86=ON -DKokkos_ENABLE_THREADS=ON -DKokkos_ENABLE_CUDA_CONSTEXPR=ON -DKokkos_ENABLE_CUDA_LAMBDA=ON -DCMAKE_BUILD_TYPE=Release"
+RUN ./docker_setup.sh "-DKokkos_ENABLE_SERIAL=ON -DKokkos_ENABLE_CUDA=ON -DKokkos_ARCH_AMPERE86=ON -DKokkos_ENABLE_THREADS=ON -DKokkos_ENABLE_CUDA_CONSTEXPR=ON -DKokkos_ENABLE_CUDA_LAMBDA=ON -DCMAKE_BUILD_TYPE=Release -DKokkos_ENABLE_COMPILE_AS_CMAKE_LANGUAGE=ON"
 
 # NOTE(cmo): Based on https://github.com/adalundhe/dev-images/blob/main/cpp/Dockerfile.cpp
 ARG USERNAME=devcontainer

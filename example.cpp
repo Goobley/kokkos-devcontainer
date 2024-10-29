@@ -15,6 +15,7 @@
 //@HEADER
 
 #include <Kokkos_Core.hpp>
+#include <mpi.h>
 
 #include <cstdio>
 #include <iostream>
@@ -26,6 +27,7 @@ struct CountFunctor {
 };
 
 int main(int argc, char* argv[]) {
+  MPI_Init(&argc, &argv);
   Kokkos::initialize(argc, argv);
   Kokkos::DefaultExecutionSpace().print_configuration(std::cout);
 
@@ -34,6 +36,9 @@ int main(int argc, char* argv[]) {
     Kokkos::finalize();
     exit(1);
   }
+  int rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  printf("I am rank %d\n", rank);
 
   const long n = strtol(argv[1], nullptr, 10);
 
@@ -63,5 +68,6 @@ int main(int argc, char* argv[]) {
 
   Kokkos::finalize();
 
+  MPI_Finalize();
   return (count == seq_count) ? 0 : -1;
 }

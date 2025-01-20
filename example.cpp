@@ -1,73 +1,90 @@
-//@HEADER
-// ************************************************************************
-//
-//                        Kokkos v. 4.0
-//       Copyright (2022) National Technology & Engineering
-//               Solutions of Sandia, LLC (NTESS).
-//
-// Under the terms of Contract DE-NA0003525 with NTESS,
-// the U.S. Government retains certain rights in this software.
-//
-// Part of Kokkos, under the Apache License v2.0 with LLVM Exceptions.
-// See https://kokkos.org/LICENSE for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//@HEADER
-
 #include <Kokkos_Core.hpp>
-#include <mpi.h>
 
 #include <cstdio>
 #include <iostream>
 
-struct CountFunctor {
-  KOKKOS_FUNCTION void operator()(const long i, long& lcount) const {
-    lcount += (i % 2) == 0;
-  }
-};
+typedef float fp_t;
+
+typedef Kokkos::LayoutRight Layout;
+template <class T, typename... Args>
+using KView = Kokkos::View<T, Layout, Args...>;
+
+typedef Kokkos::DefaultExecutionSpace::memory_space DefaultMemSpace;
+typedef Kokkos::HostSpace HostSpace;
+
+typedef Kokkos::View<fp_t*    , Layout> Fp1d;
+typedef Kokkos::View<fp_t**   , Layout> Fp2d;
+typedef Kokkos::View<fp_t***  , Layout> Fp3d;
+typedef Kokkos::View<fp_t**** , Layout> Fp4d;
+typedef Kokkos::View<fp_t*****, Layout> Fp5d;
+
+typedef Kokkos::View<const fp_t*    , Layout> FpConst1d;
+typedef Kokkos::View<const fp_t**   , Layout> FpConst2d;
+typedef Kokkos::View<const fp_t***  , Layout> FpConst3d;
+typedef Kokkos::View<const fp_t**** , Layout> FpConst4d;
+typedef Kokkos::View<const fp_t*****, Layout> FpConst5d;
+
+template <int R, typename... Args>
+using MDRange = Kokkos::MDRangePolicy<Kokkos::Rank<R, Kokkos::Iterate::Right, Kokkos::Iterate::Right>, Args...>;
 
 int main(int argc, char* argv[]) {
-  MPI_Init(&argc, &argv);
   Kokkos::initialize(argc, argv);
   Kokkos::DefaultExecutionSpace().print_configuration(std::cout);
+  {
+    auto arr_mdr = Fp4d("stuff", 1024*1024, 1, 1, 1);
+    auto arr_flat = Fp4d("stuff", 1024*1024, 1, 1, 1);
 
-  if (argc < 2) {
-    fprintf(stderr, "Usage: %s [<kokkos_options>] <size>\n", argv[0]);
-    Kokkos::finalize();
-    exit(1);
+    Kokkos::parallel_for(
+      "MDR Loop",
+      MDRange<4>(
+        {0, 0, 0, 0},
+        {1024 * 1024, 1, 1, 1}
+      ),
+      KOKKOS_LAMBDA (int x, int y, int z, int w) {
+        Kokkos::atomic_add(&arr_mdr(x, y, z, w), 1.0f);
+      }
+    );
+
+    Kokkos::parallel_for(
+      "Flat Loop",
+      1024 * 1024,
+      KOKKOS_LAMBDA (int x) {
+        Kokkos::atomic_add(&arr_flat(x, 0, 0, 0), 1.0f);
+      }
+    );
+    Kokkos::fence();
+
+    fp_t max_mdr = 0.0f;
+    fp_t max_flat = 0.0f;
+    Kokkos::parallel_reduce(
+      "Check MDR",
+      MDRange<4>(
+        {0, 0, 0, 0},
+        {1024 * 1024, 1, 1, 1}
+      ),
+      KOKKOS_LAMBDA (int x, int y, int z, int w, float& lmax) {
+        fp_t val = arr_mdr(x, y, z, w);
+        if (val > lmax) {
+          lmax = val;
+        }
+      },
+      Kokkos::Max<fp_t>(max_mdr)
+    );
+    Kokkos::parallel_reduce(
+      "Check flat",
+      1024 * 1024,
+      KOKKOS_LAMBDA (int x, float& lmax) {
+        fp_t val = arr_flat(x, 0, 0, 0);
+        if (val > lmax) {
+          lmax = val;
+        }
+      },
+      Kokkos::Max<fp_t>(max_flat)
+    );
+
+    Kokkos::fence();
+    printf("Max mdr: %f, flat: %f. Expected 1.0\n", max_mdr, max_flat);
   }
-  int rank;
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  printf("I am rank %d\n", rank);
-
-  const long n = strtol(argv[1], nullptr, 10);
-
-  printf("Number of even integers from 0 to %ld\n", n - 1);
-
-  Kokkos::Timer timer;
-  timer.reset();
-
-  // Compute the number of even integers from 0 to n-1, in parallel.
-  long count = 0;
-  CountFunctor functor;
-  Kokkos::parallel_reduce(n, functor, count);
-
-  double count_time = timer.seconds();
-  printf("  Parallel: %ld    %10.6f\n", count, count_time);
-
-  timer.reset();
-
-  // Compare to a sequential loop.
-  long seq_count = 0;
-  for (long i = 0; i < n; ++i) {
-    seq_count += (i % 2) == 0;
-  }
-
-  count_time = timer.seconds();
-  printf("Sequential: %ld    %10.6f\n", seq_count, count_time);
-
   Kokkos::finalize();
-
-  MPI_Finalize();
-  return (count == seq_count) ? 0 : -1;
+  return 0;
 }

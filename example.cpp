@@ -25,7 +25,12 @@ typedef Kokkos::View<const fp_t**** , Layout> FpConst4d;
 typedef Kokkos::View<const fp_t*****, Layout> FpConst5d;
 
 template <int R, typename... Args>
+// Wrong
 using MDRange = Kokkos::MDRangePolicy<Kokkos::Rank<R, Kokkos::Iterate::Right, Kokkos::Iterate::Right>, Args...>;
+// Correct
+// using MDRange = Kokkos::MDRangePolicy<Kokkos::Rank<R, Kokkos::Iterate::Right, Kokkos::Iterate::Left>, Args...>;
+// Correct
+// using MDRange = Kokkos::MDRangePolicy<Kokkos::Rank<R>, Args...>;
 
 int main(int argc, char* argv[]) {
   Kokkos::initialize(argc, argv);

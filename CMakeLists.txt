@@ -8,11 +8,14 @@ project(Example CXX CUDA)
 
 # Look for an installed Kokkos
 find_package(Kokkos REQUIRED)
+# add_subdirectory(kokkos)
 
+message("~~ ${Kokkos_COMPILE_LANGUAGE}")
 add_executable(example example.cpp)
-set_target_properties(example PROPERTIES CUDA_ARCHITECTURES ${Kokkos_CUDA_ARCHITECTURES})
 set_property(SOURCE example.cpp PROPERTY LANGUAGE ${Kokkos_COMPILE_LANGUAGE})
-message(${Kokkos_COMPILE_LANGUAGE})
+if(${Kokkos_COMPILE_LANGUAGE} STREQUAL "CUDA")
+    set_target_properties(example PROPERTIES CUDA_ARCHITECTURES ${Kokkos_CUDA_ARCHITECTURES})
+endif()
 
 # This is the only thing required to set up compiler/linker flags
 target_link_libraries(example Kokkos::kokkos)

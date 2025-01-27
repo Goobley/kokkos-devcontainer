@@ -18,77 +18,51 @@ typedef Kokkos::View<fp_t***  , Layout> Fp3d;
 typedef Kokkos::View<fp_t**** , Layout> Fp4d;
 typedef Kokkos::View<fp_t*****, Layout> Fp5d;
 
-typedef Kokkos::View<const fp_t*    , Layout> FpConst1d;
-typedef Kokkos::View<const fp_t**   , Layout> FpConst2d;
-typedef Kokkos::View<const fp_t***  , Layout> FpConst3d;
-typedef Kokkos::View<const fp_t**** , Layout> FpConst4d;
-typedef Kokkos::View<const fp_t*****, Layout> FpConst5d;
+typedef Kokkos::TeamPolicy<Kokkos::DefaultExecutionSpace>::member_type TeamMember;
+typedef Kokkos::TeamPolicy<Kokkos::DefaultExecutionSpace> TeamPolicy;
 
-template <int R, typename... Args>
-// Wrong
-using MDRange = Kokkos::MDRangePolicy<Kokkos::Rank<R, Kokkos::Iterate::Right, Kokkos::Iterate::Right>, Args...>;
-// Correct
-// using MDRange = Kokkos::MDRangePolicy<Kokkos::Rank<R, Kokkos::Iterate::Right, Kokkos::Iterate::Left>, Args...>;
-// Correct
-// using MDRange = Kokkos::MDRangePolicy<Kokkos::Rank<R>, Args...>;
+#define CONCAT_IMPL(x, y) x##y
+#define CONCAT(x, y) CONCAT_IMPL(x, y)
+#define MakeView() Fp2d CONCAT(view, __LINE__)("a", 256, 1024)
 
 int main(int argc, char* argv[]) {
   Kokkos::initialize(argc, argv);
   Kokkos::DefaultExecutionSpace().print_configuration(std::cout);
   {
-    auto arr_mdr = Fp4d("stuff", 1024*1024, 1, 1, 1);
-    auto arr_flat = Fp4d("stuff", 1024*1024, 1, 1, 1);
+    typedef Kokkos::MaxLoc<fp_t, int> Reducer;
+    typedef Reducer::value_type ReducerType;
+    typedef Kokkos::MaxLoc<fp_t, int, Kokkos::DefaultExecutionSpace> ReducerDev;
 
-    Kokkos::parallel_for(
-      "MDR Loop",
-      MDRange<4>(
-        {0, 0, 0, 0},
-        {1024 * 1024, 1, 1, 1}
-      ),
-      KOKKOS_LAMBDA (int x, int y, int z, int w) {
-        Kokkos::atomic_add(&arr_mdr(x, y, z, w), 1.0f);
-      }
-    );
+    MakeView();
+    MakeView();
+    MakeView();
+    MakeView();
+    MakeView();
+    MakeView();
+    MakeView();
+    MakeView();
+    MakeView();
+    MakeView();
+    MakeView();
+    MakeView();
+    MakeView();
+    MakeView();
+    MakeView();
+    MakeView();
+    MakeView();
+    printf("Allocated\n");
 
-    Kokkos::parallel_for(
-      "Flat Loop",
-      1024 * 1024,
-      KOKKOS_LAMBDA (int x) {
-        Kokkos::atomic_add(&arr_flat(x, 0, 0, 0), 1.0f);
-      }
+    ReducerType val;
+    auto pol = TeamPolicy(320, Kokkos::AUTO(), 1);
+    Kokkos::parallel_reduce(
+      "Team stuff",
+      pol,
+      KOKKOS_LAMBDA (const TeamMember& member, ReducerType& lval) {
+      },
+      Reducer(val)
     );
     Kokkos::fence();
 
-    fp_t max_mdr = 0.0f;
-    fp_t max_flat = 0.0f;
-    Kokkos::parallel_reduce(
-      "Check MDR",
-      MDRange<4>(
-        {0, 0, 0, 0},
-        {1024 * 1024, 1, 1, 1}
-      ),
-      KOKKOS_LAMBDA (int x, int y, int z, int w, float& lmax) {
-        fp_t val = arr_mdr(x, y, z, w);
-        if (val > lmax) {
-          lmax = val;
-        }
-      },
-      Kokkos::Max<fp_t>(max_mdr)
-    );
-    Kokkos::parallel_reduce(
-      "Check flat",
-      1024 * 1024,
-      KOKKOS_LAMBDA (int x, float& lmax) {
-        fp_t val = arr_flat(x, 0, 0, 0);
-        if (val > lmax) {
-          lmax = val;
-        }
-      },
-      Kokkos::Max<fp_t>(max_flat)
-    );
-
-    Kokkos::fence();
-    printf("Max mdr: %f, flat: %f. Expected 1.0\n", max_mdr, max_flat);
   }
   Kokkos::finalize();
   return 0;
